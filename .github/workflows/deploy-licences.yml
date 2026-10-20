@@ -44,10 +44,15 @@ jobs:
           API=https://api.cloudflare.com/client/v4
           msg() { node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);console.log(j.success?"ok":(j.errors||[]).map(e=>e.code+" "+e.message).join(" / "))}catch(e){console.log("réponse illisible")}})'; }
           echo "$ACC" | grep -qE '^[0-9a-f]{32}$' || { echo "::error title=Account ID::CLOUDFLARE_ACCOUNT_ID n'a pas le bon format (32 caractères 0-9 a-f, il en a ${#ACC}). Recopie l'Account ID de la page Workers & Pages."; exit 1; }
+          L=${#TOK}
+          if [ "$TOK" = "$ACC" ]; then echo "::error title=Jeton Cloudflare::CLOUDFLARE_API_TOKEN contient l'Account ID, pas le jeton."; exit 1; fi
+          if printf %s "$TOK" | grep -qE '^[0-9a-f]{37}$'; then echo "::error title=Jeton Cloudflare::CLOUDFLARE_API_TOKEN contient la « Global API Key ». Il faut un jeton créé avec « Create Token » → modèle « Edit Cloudflare Workers »."; exit 1; fi
+          if ! printf %s "$TOK" | grep -qE '^[A-Za-z0-9_-]+$'; then echo "::error title=Jeton Cloudflare::CLOUDFLARE_API_TOKEN contient des caractères inattendus ($L caractères) : du texte a dû être collé avec le jeton."; exit 1; fi
+          echo "Jeton : $L caractères"
           V=$(curl -s -H "Authorization: Bearer $TOK" $API/user/tokens/verify | msg)
           if [ "$V" != "ok" ]; then
             V2=$(curl -s -H "Authorization: Bearer $TOK" $API/accounts/$ACC/tokens/verify | msg)
-            [ "$V2" = "ok" ] || { echo "::error title=Jeton Cloudflare::Jeton refusé par Cloudflare ($V). Recrée-le avec le modèle « Edit Cloudflare Workers » et recolle-le dans CLOUDFLARE_API_TOKEN."; exit 1; }
+            [ "$V2" = "ok" ] || { echo "::error title=Jeton Cloudflare::Jeton refusé par Cloudflare ($V, $L caractères). Recrée-le avec le modèle « Edit Cloudflare Workers » et recolle-le dans CLOUDFLARE_API_TOKEN."; exit 1; }
           fi
           echo "Jeton : valide"
           A=$(curl -s -H "Authorization: Bearer $TOK" $API/accounts/$ACC | msg)
