@@ -1,0 +1,27 @@
+name: Contrôler la sécurité du serveur en ligne
+
+on:
+  workflow_dispatch:
+
+jobs:
+  controle:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Personne ne peut créer de clé sans le mot de passe
+        run: |
+          U=$(cat server/url.txt)
+          fail=0
+          t() { # description, chemin, en-tête
+            code=$(curl -s -o /tmp/r.json -w '%{http_code}' -X POST "$U$2" -H 'content-type: application/json' ${3:+-H "$3"} -d '{"name":"Intrus","profile":"tout"}')
+            if [ "$code" = "401" ]; then echo "✅ $1 → refusé ($(cat /tmp/r.json))"; else echo "::error::❌ $1 → code $code : $(cat /tmp/r.json)"; fail=1; fi
+          }
+          t "créer une clé sans mot de passe" /admin/create
+          t "créer une clé avec un faux mot de passe" /admin/create "authorization: Bearer 1234"
+          t "lister les clés sans mot de passe" /admin/list
+          t "supprimer une clé sans mot de passe" /admin/delete
+          t "modifier une clé avec un faux mot de passe" /admin/update "authorization: Bearer admin"
+          code=$(curl -s -o /tmp/r.json -w '%{http_code}' -X POST "$U/activate" -H 'content-type: application/json' -d '{"key":"AIKO-FAUX-FAUX-FAUX","device":"x"}')
+          echo "Activation d'une clé inventée → $code $(cat /tmp/r.json)"
+          echo "::notice title=Résultat::$( [ $fail = 0 ] && echo 'Serveur protégé : toutes les tentatives sans mot de passe sont refusées' || echo 'PROBLÈME de sécurité' )"
+          exit $fail

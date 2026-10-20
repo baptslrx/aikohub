@@ -47,13 +47,21 @@ final class SelfTest {
 
         log("== Serveur de licences local : \(Config.server)")
         let admin = AdminModel()
+        check(!admin.authenticated && admin.password.isEmpty, "mode admin fermé au départ, aucun mot de passe retenu")
+        await snapshot(AdminView(model: admin, onClose: {}), name: "admin-verrouille")
+        admin.newName = "Intrus"
+        await admin.create()
+        check(admin.justCreated == nil, "aucune clé créée sans connexion")
         admin.password = env["AIKO_ADMIN"] ?? ""
         await admin.load()
-        check(admin.error == nil, "connexion admin : \(admin.error ?? "ok")")
+        check(admin.error == nil && admin.authenticated, "connexion admin : \(admin.error ?? "ok")")
         let wrong = AdminModel()
         wrong.password = "mauvais"
         await wrong.load()
-        check(wrong.error?.contains("incorrect") == true, "mauvais mot de passe admin refusé")
+        check(wrong.error?.contains("incorrect") == true && !wrong.authenticated, "mauvais mot de passe admin refusé")
+        wrong.newName = "Intrus"
+        await wrong.create()
+        check(wrong.justCreated == nil, "aucune clé créée avec un mauvais mot de passe")
 
         admin.newName = "Camille"
         admin.newProfile = "monteur"

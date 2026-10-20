@@ -21,14 +21,56 @@ struct AikoHubMain {
     }
 }
 
+/// Affichage du mode admin (ouvert seulement depuis le menu AikoHub, ⌥⌘A).
+@MainActor
+final class Nav: ObservableObject {
+    @Published var showAdmin = false
+}
+
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var window: NSWindow?
     let hub = HubModel()
     let admin = AdminModel()
+    let nav = Nav()
+
+    @objc func openAdmin() {
+        nav.showAdmin = true
+        window?.makeKeyAndOrderFront(nil)
+    }
+
+    private func buildMenu() {
+        let main = NSMenu()
+        let appItem = NSMenuItem()
+        main.addItem(appItem)
+        let appMenu = NSMenu()
+        appMenu.addItem(withTitle: "À propos d'AikoHub", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        appMenu.addItem(.separator())
+        let admin = NSMenuItem(title: "Mode admin…", action: #selector(openAdmin), keyEquivalent: "a")
+        admin.keyEquivalentModifierMask = [.command, .option]
+        admin.target = self
+        appMenu.addItem(admin)
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "Masquer AikoHub", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        appMenu.addItem(withTitle: "Quitter AikoHub", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appItem.submenu = appMenu
+        // Menu Édition : pour que ⌘V (coller la clé), ⌘C, ⌘A fonctionnent dans les champs
+        let editItem = NSMenuItem()
+        main.addItem(editItem)
+        let edit = NSMenu(title: "Édition")
+        edit.addItem(withTitle: "Annuler", action: Selector(("undo:")), keyEquivalent: "z")
+        edit.addItem(.separator())
+        edit.addItem(withTitle: "Couper", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        edit.addItem(withTitle: "Copier", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        edit.addItem(withTitle: "Coller", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        edit.addItem(withTitle: "Tout sélectionner", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        editItem.submenu = edit
+        NSApp.mainMenu = main
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        let w = NSWindow(contentViewController: NSHostingController(rootView: RootView(hub: hub, admin: admin)))
+        buildMenu()
+        let w = NSWindow(contentViewController: NSHostingController(rootView: RootView(hub: hub, admin: admin, nav: nav)))
         w.title = "AikoHub"
         w.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         w.setContentSize(NSSize(width: 940, height: 700))
@@ -48,17 +90,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct RootView: View {
     @ObservedObject var hub: HubModel
     @ObservedObject var admin: AdminModel
-    @State var showAdmin = false
+    @ObservedObject var nav: Nav
     @Environment(\.colorScheme) private var scheme
+
+    init(hub: HubModel, admin: AdminModel, nav: Nav = Nav()) {
+        self.hub = hub
+        self.admin = admin
+        self.nav = nav
+    }
 
     var body: some View {
         Group {
-            if showAdmin {
-                AdminView(model: admin) { showAdmin = false }
+            if nav.showAdmin {
+                AdminView(model: admin) { nav.showAdmin = false }
             } else if hub.licence == nil {
-                GateView(hub: hub) { showAdmin = true }
+                GateView(hub: hub)
             } else {
-                HomeView(hub: hub) { showAdmin = true }
+                HomeView(hub: hub)
             }
         }
         .background(Theme.background(scheme))
@@ -69,7 +117,6 @@ struct RootView: View {
 
 struct GateView: View {
     @ObservedObject var hub: HubModel
-    var onAdmin: () -> Void
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
@@ -98,8 +145,6 @@ struct GateView: View {
             HStack {
                 Text("Une clé fonctionne sur 2 Mac. Ensuite, AikoHub marche 30 jours sans internet entre deux vérifications.")
                     .font(.system(size: 11)).foregroundStyle(.secondary)
-                Spacer()
-                Button("Mode admin") { onAdmin() }.buttonStyle(.borderless).font(.system(size: 11))
             }
         }
         .padding(28)
@@ -111,7 +156,6 @@ struct GateView: View {
 
 struct HomeView: View {
     @ObservedObject var hub: HubModel
-    var onAdmin: () -> Void
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
@@ -171,8 +215,6 @@ struct HomeView: View {
             Menu {
                 Button("Vérifier la licence maintenant") { Task { await hub.refreshIfNeeded(force: true); await hub.loadCatalog() } }
                 Button("Désactiver ce Mac (libère la place)") { Task { await hub.deactivateThisMac() } }
-                Divider()
-                Button("Mode admin") { onAdmin() }
             } label: { Image(systemName: "ellipsis.circle").font(.system(size: 18)) }
                 .menuStyle(.borderlessButton).frame(width: 40)
         }

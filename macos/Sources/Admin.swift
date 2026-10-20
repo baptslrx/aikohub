@@ -52,27 +52,25 @@ final class AdminModel: ObservableObject {
     @Published var newHasEnd = false
     @Published var newEnd = Calendar.current.date(byAdding: .month, value: 6, to: Date()) ?? Date()
     @Published var justCreated: AdminLicence?
+    /// Vrai seulement après une connexion acceptée par le serveur.
+    @Published var authenticated = false
     var client = LicenseClient()
 
-    static let account = "admin"
-
-    init() { password = AdminModel.loadPassword() ?? "" }
-
-    static func loadPassword() -> String? {
+    init() {
+        password = ""
+        // Les anciennes versions retenaient le mot de passe : on l'efface, il faut le taper à chaque fois
         let q: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: "fr.aikographic.aikohub",
-                                kSecAttrAccount as String: account, kSecReturnData as String: true]
-        var out: CFTypeRef?
-        guard SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess, let d = out as? Data else { return nil }
-        return String(data: d, encoding: .utf8)
+                                kSecAttrAccount as String: "admin"]
+        SecItemDelete(q as CFDictionary)
     }
 
-    func savePassword() {
-        let base: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: "fr.aikographic.aikohub",
-                                   kSecAttrAccount as String: Self.account]
-        SecItemDelete(base as CFDictionary)
-        var add = base
-        add[kSecValueData as String] = Data(password.utf8)
-        SecItemAdd(add as CFDictionary, nil)
+    /// Quitte le mode admin : mot de passe oublié, liste effacée.
+    func logout() {
+        authenticated = false
+        password = ""
+        licences = []
+        justCreated = nil
+        error = nil
     }
 
     private func call(_ path: String, _ body: [String: Any]) async -> [String: Any]? {
@@ -89,12 +87,13 @@ final class AdminModel: ObservableObject {
     }
 
     func load() async {
-        guard let r = await call("/admin/list", [:]) else { return }
-        savePassword()
+        guard let r = await call("/admin/list", [:]) else { authenticated = false; licences = []; return }
+        authenticated = true
         licences = (r["licences"] as? [[String: Any]] ?? []).map(AdminLicence.init)
     }
 
     func create() async {
+        guard authenticated else { return }
         var body: [String: Any] = ["name": newName, "profile": newProfile, "maxDevices": newMax]
         if newHasEnd { body["expires"] = ISO8601DateFormatter().string(from: newEnd) }
         guard let r = await call("/admin/create", body), let l = r["licence"] as? [String: Any] else { return }
@@ -131,17 +130,50 @@ struct AdminView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Image(systemName: "key.fill").foregroundStyle(Theme.accentText(scheme))
+                Image(systemName: model.authenticated ? "lock.open.fill" : "lock.fill").foregroundStyle(Theme.accentText(scheme))
                 Text("Mode admin · licences").font(.system(size: 18, weight: .semibold))
                 Spacer()
-                Button("Fermer") { onClose() }
+                if model.authenticated {
+                    if model.busy { ProgressView().controlSize(.small) }
+                    Button("Se déconnecter") { model.logout() }
+                }
+                Button("Fermer") { model.logout(); onClose() }
             }
-            HStack {
-                SecureField("Mot de passe administrateur", text: $model.password).frame(width: 260)
-                Button("Se connecter") { Task { await model.load() } }.disabled(model.password.isEmpty)
-                if model.busy { ProgressView().controlSize(.small) }
+            if model.authenticated {
                 if let e = model.error { Text(e).foregroundStyle(.red).font(.system(size: 12)) }
+                content
+            } else {
+                login
             }
+        }
+        .padding(22)
+        .frame(minWidth: 860, minHeight: 600)
+        .background(Theme.background(scheme))
+    }
+
+    /// Avant la connexion, on ne montre rien d'autre que le mot de passe.
+    private var login: some View {
+        VStack(spacing: 14) {
+            Spacer()
+            Image(systemName: "lock.fill").font(.system(size: 34)).foregroundStyle(Theme.accentText(scheme))
+            Text("Réservé à l'administrateur").font(.system(size: 16, weight: .semibold))
+            HStack {
+                SecureField("Mot de passe administrateur", text: $model.password)
+                    .textFieldStyle(.roundedBorder).frame(width: 280)
+                    .onSubmit { Task { await model.load() } }
+                Button("Se connecter") { Task { await model.load() } }
+                    .keyboardShortcut(.defaultAction).tint(Theme.accentUI)
+                    .disabled(model.password.isEmpty || model.busy)
+            }
+            if model.busy { ProgressView().controlSize(.small) }
+            if let e = model.error { Text(e).foregroundStyle(.red).font(.system(size: 12)) }
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var content: some View {
+        VStack(alignment: .leading, spacing: 16) {
             card("Nouvelle clé") {
                 HStack(spacing: 10) {
                     TextField("Nom de la personne", text: $model.newName).frame(width: 200)
@@ -157,7 +189,7 @@ struct AdminView: View {
                     Spacer()
                     Button("Créer la clé") { Task { await model.create() } }
                         .keyboardShortcut(.defaultAction).tint(Theme.accentUI)
-                        .disabled(model.newName.trimmingCharacters(in: .whitespaces).isEmpty || model.password.isEmpty)
+                        .disabled(model.newName.trimmingCharacters(in: .whitespaces).isEmpty || model.busy)
                 }
                 if let l = model.justCreated {
                     HStack {
@@ -179,9 +211,6 @@ struct AdminView: View {
                 }
             }
         }
-        .padding(22)
-        .frame(minWidth: 860, minHeight: 600)
-        .background(Theme.background(scheme))
     }
 
     private func row(_ l: AdminLicence) -> some View {
