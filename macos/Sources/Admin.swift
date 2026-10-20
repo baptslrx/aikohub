@@ -186,34 +186,52 @@ struct AdminView: View {
 
     private func row(_ l: AdminLicence) -> some View {
         HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 3) {
-                HStack {
-                    Text(l.name).font(.system(size: 13, weight: .semibold))
-                    Text(Self.profiles.first { $0.0 == l.profile }?.1 ?? l.profile)
-                        .font(.system(size: 10, weight: .bold)).padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(Capsule().fill(Theme.accentUI.opacity(0.2))).foregroundStyle(Theme.accentText(scheme))
-                    if l.revoked { Text("DÉSACTIVÉE").font(.system(size: 10, weight: .bold)).foregroundStyle(.red) }
-                }
-                Text(l.key).font(.system(size: 11).monospaced()).foregroundStyle(.secondary).textSelection(.enabled)
-                Text("\(l.devices.count)/\(l.maxDevices) Mac : " + (l.devices.isEmpty ? "aucun" : l.devices.map(\.name).joined(separator: ", "))
-                     + (l.expires.map { " · jusqu'au " + String($0.prefix(10)) } ?? ""))
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
-            }
+            info(l)
             Spacer()
-            Button { AdminModel.copy(l.message) } label: { Image(systemName: "doc.on.doc") }.help("Copier le message avec la clé")
-            Button("Libérer les Mac") { Task { await model.update(l.key, ["resetDevices": true]) } }.disabled(l.devices.isEmpty)
-            Button(l.revoked ? "Réactiver" : "Désactiver") { Task { await model.update(l.key, ["revoked": !l.revoked]) } }
-            Button(role: .destructive) {
-                let a = NSAlert()
-                a.messageText = "Supprimer la clé de \(l.name) ?"
-                a.informativeText = "Elle ne fonctionnera plus sur aucun Mac (au plus tard 30 jours sans connexion)."
-                a.addButton(withTitle: "Supprimer")
-                a.addButton(withTitle: "Annuler")
-                if a.runModal() == .alertFirstButtonReturn { Task { await model.delete(l.key) } }
-            } label: { Image(systemName: "trash") }
+            actions(l)
         }
         .padding(10)
         .background(RoundedRectangle(cornerRadius: 8).fill(Theme.surface(scheme)))
+    }
+
+    private func profileName(_ p: String) -> String { Self.profiles.first { $0.0 == p }?.1 ?? p }
+
+    private func devicesLine(_ l: AdminLicence) -> String {
+        let names = l.devices.isEmpty ? "aucun" : l.devices.map(\.name).joined(separator: ", ")
+        let end = l.expires.map { " · jusqu'au " + String($0.prefix(10)) } ?? ""
+        return "\(l.devices.count)/\(l.maxDevices) Mac : \(names)\(end)"
+    }
+
+    private func info(_ l: AdminLicence) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack {
+                Text(l.name).font(.system(size: 13, weight: .semibold))
+                Text(profileName(l.profile))
+                    .font(.system(size: 10, weight: .bold)).padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(Capsule().fill(Theme.accentUI.opacity(0.2))).foregroundStyle(Theme.accentText(scheme))
+                if l.revoked { Text("DÉSACTIVÉE").font(.system(size: 10, weight: .bold)).foregroundStyle(.red) }
+            }
+            Text(l.key).font(.system(size: 11).monospaced()).foregroundStyle(.secondary).textSelection(.enabled)
+            Text(devicesLine(l)).font(.system(size: 11)).foregroundStyle(.secondary)
+        }
+    }
+
+    private func actions(_ l: AdminLicence) -> some View {
+        HStack {
+            Button { AdminModel.copy(l.message) } label: { Image(systemName: "doc.on.doc") }.help("Copier le message avec la clé")
+            Button("Libérer les Mac") { Task { await model.update(l.key, ["resetDevices": true]) } }.disabled(l.devices.isEmpty)
+            Button(l.revoked ? "Réactiver" : "Désactiver") { Task { await model.update(l.key, ["revoked": !l.revoked]) } }
+            Button(role: .destructive) { confirmDelete(l) } label: { Image(systemName: "trash") }
+        }
+    }
+
+    private func confirmDelete(_ l: AdminLicence) {
+        let a = NSAlert()
+        a.messageText = "Supprimer la clé de \(l.name) ?"
+        a.informativeText = "Elle ne fonctionnera plus sur aucun Mac (au plus tard 30 jours sans connexion)."
+        a.addButton(withTitle: "Supprimer")
+        a.addButton(withTitle: "Annuler")
+        if a.runModal() == .alertFirstButtonReturn { Task { await model.delete(l.key) } }
     }
 
     private func card<C: View>(_ title: String, @ViewBuilder _ content: () -> C) -> some View {
