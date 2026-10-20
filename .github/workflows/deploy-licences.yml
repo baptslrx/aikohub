@@ -35,6 +35,9 @@ jobs:
         run: |
           # Nettoie les espaces ou retours à la ligne collés par erreur
           ACC=$(printf %s "$CLOUDFLARE_ACCOUNT_ID" | tr -d '[:space:]')
+          # Si du texte a été collé autour de l'identifiant, on ne garde que lui
+          FOUND=$(printf %s "$ACC" | tr 'A-F' 'a-f' | grep -oE '[0-9a-f]{32}' | head -n 1)
+          [ -n "$FOUND" ] && ACC=$FOUND
           TOK=$(printf %s "$CLOUDFLARE_API_TOKEN" | tr -d '[:space:]')
           echo "CLOUDFLARE_ACCOUNT_ID=$ACC" >> "$GITHUB_ENV"
           echo "CLOUDFLARE_API_TOKEN=$TOK" >> "$GITHUB_ENV"
