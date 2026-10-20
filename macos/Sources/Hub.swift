@@ -142,8 +142,14 @@ final class HubModel: ObservableObject {
         licence = LicenseVerifier.verify(s.token, publicKey: Config.publicKey, device: DeviceID.current)
     }
 
-    var tools: [Tool] { Tool.all.filter { licence.map { l in $0.allowed(for: l.profile) } ?? false } }
-    var lockedTools: [Tool] { Tool.all.filter { licence.map { l in !$0.allowed(for: l.profile) } ?? true } }
+    var tools: [Tool] {
+        guard let p = licence?.profile else { return [] }
+        return Tool.all.filter { $0.allowed(for: p) }
+    }
+    var lockedTools: [Tool] {
+        guard let p = licence?.profile else { return Tool.all }
+        return Tool.all.filter { !$0.allowed(for: p) }
+    }
 
     func activate() async {
         let key = keyInput.trimmingCharacters(in: .whitespaces).uppercased()
