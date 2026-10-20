@@ -31,12 +31,36 @@ jobs:
           if [ -n "$missing" ]; then echo "::error title=Secrets manquants::$missing"; exit 1; fi
       - name: Tests
         run: node --test test/licences.test.mjs
+      - name: Vérifier l'accès Cloudflare
+        run: |
+          # Nettoie les espaces ou retours à la ligne collés par erreur
+          ACC=$(printf %s "$CLOUDFLARE_ACCOUNT_ID" | tr -d '[:space:]')
+          TOK=$(printf %s "$CLOUDFLARE_API_TOKEN" | tr -d '[:space:]')
+          echo "CLOUDFLARE_ACCOUNT_ID=$ACC" >> "$GITHUB_ENV"
+          echo "CLOUDFLARE_API_TOKEN=$TOK" >> "$GITHUB_ENV"
+          API=https://api.cloudflare.com/client/v4
+          msg() { node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);console.log(j.success?"ok":(j.errors||[]).map(e=>e.code+" "+e.message).join(" / "))}catch(e){console.log("réponse illisible")}})'; }
+          echo "$ACC" | grep -qE '^[0-9a-f]{32}$' || { echo "::error title=Account ID::CLOUDFLARE_ACCOUNT_ID n'a pas le bon format (32 caractères 0-9 a-f, il en a ${#ACC}). Recopie l'Account ID de la page Workers & Pages."; exit 1; }
+          V=$(curl -s -H "Authorization: Bearer $TOK" $API/user/tokens/verify | msg)
+          if [ "$V" != "ok" ]; then
+            V2=$(curl -s -H "Authorization: Bearer $TOK" $API/accounts/$ACC/tokens/verify | msg)
+            [ "$V2" = "ok" ] || { echo "::error title=Jeton Cloudflare::Jeton refusé par Cloudflare ($V). Recrée-le avec le modèle « Edit Cloudflare Workers » et recolle-le dans CLOUDFLARE_API_TOKEN."; exit 1; }
+          fi
+          echo "Jeton : valide"
+          A=$(curl -s -H "Authorization: Bearer $TOK" $API/accounts/$ACC | msg)
+          [ "$A" = "ok" ] || { echo "::error title=Compte Cloudflare::Le jeton n'a pas accès à ce compte ($A). Vérifie l'Account ID, et dans le jeton « Account Resources : Include → ton compte »."; exit 1; }
+          echo "Compte : ok"
+          K=$(curl -s -H "Authorization: Bearer $TOK" "$API/accounts/$ACC/storage/kv/namespaces?per_page=5" | msg)
+          [ "$K" = "ok" ] || { echo "::error title=Permission KV::Le jeton ne peut pas gérer les bases KV ($K). Il faut la permission « Workers KV Storage : Edit » (incluse dans le modèle Edit Cloudflare Workers)."; exit 1; }
+          echo "KV : ok"
+          S=$(curl -s -H "Authorization: Bearer $TOK" $API/accounts/$ACC/workers/subdomain | msg)
+          [ "$S" = "ok" ] || echo "::warning title=Sous-domaine workers.dev::$S"
       - name: Base de données des licences (Cloudflare KV)
         run: |
           W="npx --yes wrangler@3.80.0"
           ID=$($W kv namespace list 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const a=JSON.parse(s);const n=a.find(x=>/aikohub-licences-LICENCES/.test(x.title));console.log(n?n.id:"")}catch(e){console.log("")}})')
           if [ -z "$ID" ]; then
-            $W kv namespace create LICENCES > /tmp/kv.txt 2>&1 || { cat /tmp/kv.txt; echo "::error title=KV::création impossible : $(tail -n 3 /tmp/kv.txt | tr '\n' ' ')"; exit 1; }
+            $W kv namespace create LICENCES > /tmp/kv.txt 2>&1 || { cat /tmp/kv.txt; echo "::error title=KV::création impossible : $(sed -e 's/\x1b\[[0-9;]*m//g' /tmp/kv.txt | grep -vE 'open an issue|^\s*$|wrangler 3|───|update available' | tail -n 6 | tr '\n' ' ' | cut -c1-600)"; exit 1; }
             ID=$(grep -oE '[0-9a-f]{32}' /tmp/kv.txt | head -n 1)
           fi
           [ -n "$ID" ] || { echo "::error title=KV::identifiant introuvable"; exit 1; }
