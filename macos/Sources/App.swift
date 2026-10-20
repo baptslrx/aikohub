@@ -22,7 +22,6 @@ struct AikoHubMain {
 }
 
 /// Affichage du mode admin (ouvert seulement depuis le menu AikoHub, ⌥⌘A).
-@MainActor
 final class Nav: ObservableObject {
     @Published var showAdmin = false
 }
