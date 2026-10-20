@@ -1,0 +1,7 @@
+macos/build/
+macos/build.log
+screenshots/
+.DS_Store
+server/node_modules/
+server/.dev.vars
+server/.wrangler/

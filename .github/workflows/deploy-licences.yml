@@ -1,0 +1,77 @@
+name: Mettre en ligne le serveur de licences
+
+# Nécessite 3 secrets du dépôt : CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, AIKO_ADMIN_PASSWORD
+# (+ AIKO_GITHUB_TOKEN, facultatif, pour que les outils se téléchargent depuis AikoHub).
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Vérifier les secrets
+        run: |
+          missing=""
+          [ -z "${{ secrets.CLOUDFLARE_API_TOKEN }}" ] && missing="$missing CLOUDFLARE_API_TOKEN"
+          [ -z "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" ] && missing="$missing CLOUDFLARE_ACCOUNT_ID"
+          [ -z "${{ secrets.AIKO_ADMIN_PASSWORD }}" ] && missing="$missing AIKO_ADMIN_PASSWORD"
+          if [ -n "$missing" ]; then echo "::error title=Secrets manquants::$missing"; exit 1; fi
+      - name: Tests
+        run: node --test test/licences.test.mjs
+      - name: Base de données des licences (Cloudflare KV)
+        run: |
+          W="npx --yes wrangler@3.80.0"
+          ID=$($W kv namespace list 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const a=JSON.parse(s);const n=a.find(x=>/aikohub-licences-LICENCES/.test(x.title));console.log(n?n.id:"")}catch(e){console.log("")}})')
+          if [ -z "$ID" ]; then
+            $W kv namespace create LICENCES > /tmp/kv.txt 2>&1 || { cat /tmp/kv.txt; echo "::error title=KV::création impossible : $(tail -n 3 /tmp/kv.txt | tr '\n' ' ')"; exit 1; }
+            ID=$(grep -oE '[0-9a-f]{32}' /tmp/kv.txt | head -n 1)
+          fi
+          [ -n "$ID" ] || { echo "::error title=KV::identifiant introuvable"; exit 1; }
+          sed -i "s/REMPLACE_PAR_LE_DEPLOIEMENT/$ID/" wrangler.toml
+          echo "KV : $ID"
+      - name: Mise en ligne
+        run: |
+          W="npx --yes wrangler@3.80.0"
+          $W deploy > /tmp/deploy.txt 2>&1 || { cat /tmp/deploy.txt; echo "::error title=Déploiement::$(tail -n 4 /tmp/deploy.txt | tr '\n' ' ')"; exit 1; }
+          cat /tmp/deploy.txt
+          URL=$(grep -oE 'https://[a-zA-Z0-9.-]+\.workers\.dev' /tmp/deploy.txt | head -n 1)
+          echo "$URL" > url.txt
+          echo "::notice title=Adresse du serveur::$URL"
+      - name: Clés et mot de passe (secrets du serveur)
+        run: |
+          W="npx --yes wrangler@3.80.0"
+          if ! $W secret list 2>/dev/null | grep -q SIGNING_KEY; then
+            node keys.mjs > /tmp/keys.json
+            node -e "console.log(require('/tmp/keys.json').privateKey)" | $W secret put SIGNING_KEY
+            node -e "console.log(require('/tmp/keys.json').publicKey)" | $W secret put PUBLIC_KEY
+            node -e "console.log(require('/tmp/keys.json').publicKey)" > public-key.txt
+            rm /tmp/keys.json
+            echo "::notice title=Clé publique::$(cat public-key.txt)"
+          fi
+          printf '%s' "${{ secrets.AIKO_ADMIN_PASSWORD }}" | $W secret put ADMIN_PASSWORD
+          if [ -n "${{ secrets.AIKO_GITHUB_TOKEN }}" ]; then
+            printf '%s' "${{ secrets.AIKO_GITHUB_TOKEN }}" | $W secret put GITHUB_TOKEN
+          else
+            echo "::warning title=Téléchargements::secret AIKO_GITHUB_TOKEN absent : AikoHub ne pourra pas encore télécharger les outils"
+          fi
+          curl -s "$(cat url.txt)/" ; echo
+      - name: Enregistrer l'adresse et la clé publique dans le dépôt
+        working-directory: .
+        run: |
+          git config user.name baptslrx
+          git config user.email 261882867+baptslrx@users.noreply.github.com
+          git add server/url.txt server/public-key.txt 2>/dev/null || git add server/url.txt
+          git diff --cached --quiet || { git commit -m "Serveur de licences : adresse et clé publique"; git push; }

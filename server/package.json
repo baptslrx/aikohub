@@ -1,0 +1,6 @@
+{
+  "name": "aikohub-licences",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test test/licences.test.mjs" }
+}

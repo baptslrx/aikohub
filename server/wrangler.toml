@@ -1,0 +1,7 @@
+name = "aikohub-licences"
+main = "src/index.js"
+compatibility_date = "2024-09-23"
+
+[[kv_namespaces]]
+binding = "LICENCES"
+id = "REMPLACE_PAR_LE_DEPLOIEMENT"
