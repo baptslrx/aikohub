@@ -46,6 +46,9 @@ jobs:
           echo "$ACC" | grep -qE '^[0-9a-f]{32}$' || { echo "::error title=Account ID::CLOUDFLARE_ACCOUNT_ID n'a pas le bon format (32 caractères 0-9 a-f, il en a ${#ACC}). Recopie l'Account ID de la page Workers & Pages."; exit 1; }
           L=${#TOK}
           if [ "$TOK" = "$ACC" ]; then echo "::error title=Jeton Cloudflare::CLOUDFLARE_API_TOKEN contient l'Account ID, pas le jeton."; exit 1; fi
+          case "$TOK" in github_pat_*|ghp_*) echo "::error title=Jeton Cloudflare::CLOUDFLARE_API_TOKEN contient le jeton GitHub (il va dans AIKO_GITHUB_TOKEN). Colle le jeton Cloudflare à la place."; exit 1;; esac
+          GH=$(printf %s "${{ secrets.AIKO_GITHUB_TOKEN }}" | tr -d '[:space:]')
+          if [ -n "$GH" ]; then case "$GH" in github_pat_*|ghp_*) echo "Jeton GitHub : format ok";; *) echo "::error title=Jeton GitHub::AIKO_GITHUB_TOKEN ne contient pas un jeton GitHub (il doit commencer par github_pat_)."; exit 1;; esac; fi
           if printf %s "$TOK" | grep -qE '^[0-9a-f]{37}$'; then echo "::error title=Jeton Cloudflare::CLOUDFLARE_API_TOKEN contient la « Global API Key ». Il faut un jeton créé avec « Create Token » → modèle « Edit Cloudflare Workers »."; exit 1; fi
           if ! printf %s "$TOK" | grep -qE '^[A-Za-z0-9_-]+$'; then echo "::error title=Jeton Cloudflare::CLOUDFLARE_API_TOKEN contient des caractères inattendus ($L caractères) : du texte a dû être collé avec le jeton."; exit 1; fi
           echo "Jeton : $L caractères"
