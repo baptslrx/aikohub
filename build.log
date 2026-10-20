@@ -1,0 +1,10 @@
+→ Compilation universelle (arm64 + x86_64)…
+Sources/Hub.swift:225:83: warning: expression of type 'URL' is unused
+            try await Task.detached { try Installer.install(zip: zip, app: app) }.value
+                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~
+Sources/Hub.swift:225:83: warning: expression of type 'URL' is unused
+            try await Task.detached { try Installer.install(zip: zip, app: app) }.value
+                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~
+✓ build/AikoHub.app prêt
+Executable=/Users/runner/work/aikohub/aikohub/macos/build/AikoHub.app/Contents/MacOS/AikoHub
+designated => identifier "fr.aikographic.aikohub"

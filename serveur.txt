@@ -1,0 +1,64 @@
+TAP version 13
+# Subtest: clé lisible, format AIKO-XXXX-XXXX-XXXX
+ok 1 - clé lisible, format AIKO-XXXX-XXXX-XXXX
+  ---
+  duration_ms: 0.970333
+  type: 'test'
+  ...
+# Subtest: profils : chaque licence ne débloque que ses outils
+ok 2 - profils : chaque licence ne débloque que ses outils
+  ---
+  duration_ms: 0.186042
+  type: 'test'
+  ...
+# Subtest: administration protégée par mot de passe
+ok 3 - administration protégée par mot de passe
+  ---
+  duration_ms: 45.869833
+  type: 'test'
+  ...
+# Subtest: activation sur 2 Mac maximum
+ok 4 - activation sur 2 Mac maximum
+  ---
+  duration_ms: 16.604834
+  type: 'test'
+  ...
+# Subtest: jeton signé, lisible hors ligne, infalsifiable
+ok 5 - jeton signé, lisible hors ligne, infalsifiable
+  ---
+  duration_ms: 2.739791
+  type: 'test'
+  ...
+# Subtest: renouvellement, révocation, expiration
+ok 6 - renouvellement, révocation, expiration
+  ---
+  duration_ms: 3.820666
+  type: 'test'
+  ...
+# Subtest: une licence avec date de fin : le jeton ne la dépasse pas
+ok 7 - une licence avec date de fin : le jeton ne la dépasse pas
+  ---
+  duration_ms: 1.579625
+  type: 'test'
+  ...
+# Subtest: téléchargement refusé sans licence valide ou hors profil
+ok 8 - téléchargement refusé sans licence valide ou hors profil
+  ---
+  duration_ms: 4.969375
+  type: 'test'
+  ...
+# Subtest: clé inconnue : message clair
+ok 9 - clé inconnue : message clair
+  ---
+  duration_ms: 0.62025
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 157.5385

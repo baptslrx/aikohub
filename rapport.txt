@@ -1,0 +1,38 @@
+== Signature des licences (jeton créé par le serveur, vérifié par le Mac)
+  ok   jeton valide lu hors ligne : Paul, monteur
+  ok   jeton trafiqué (profil « tout ») refusé
+  ok   jeton copié sur un autre Mac refusé
+  ok   après 30 jours sans connexion : à revérifier
+== Serveur de licences local : http://127.0.0.1:8787
+  ok   mode admin fermé au départ, aucun mot de passe retenu
+   capture admin-verrouille-sombre.png
+   capture admin-verrouille-clair.png
+  ok   aucune clé créée sans connexion
+  ok   connexion admin : ok
+  ok   mauvais mot de passe admin refusé
+  ok   aucune clé créée avec un mauvais mot de passe
+   clé créée : AIKO-FYK9-WZ69-9L4A
+  ok   clé AIKO-… pour 2 Mac
+  ok   message à envoyer prêt
+   capture admin-sombre.png
+   capture admin-clair.png
+== Activation dans AikoHub
+   capture cle-sombre.png
+   capture cle-clair.png
+  ok   clé inconnue : « Cette clé n'existe pas. Vérifie-la (elle commence par AIKO-). »
+  ok   licence activée sur ce Mac
+  ok   outils du profil Monteur seulement
+  ok   licence enregistrée (les outils peuvent la lire)
+   capture outils-sombre.png
+   capture outils-clair.png
+  ok   2e Mac accepté
+  ok   3e Mac refusé : « Cette clé est déjà utilisée sur 2 appareils (sjc22-be111-4f5050c1-7f3e… »
+  ok   renouvellement de la licence
+  ok   clé désactivée par l'admin : AikoHub se verrouille
+  ok   clé réactivée : ça remarche
+  ok   « Désactiver ce Mac » libère la place
+== Installation d'un outil (archive comme celles des versions publiées)
+  ok   appli décompressée et installée (version 1.2.0)
+  ok   réinstallation par-dessus l'ancienne version
+
+Tout est OK
